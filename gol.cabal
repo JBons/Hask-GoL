@@ -1,0 +1,101 @@
+name:                gol
+version:             0.1.0.0
+-- synopsis:
+-- description:
+homepage:            https://github.com/JBons/gol#readme
+license:             BSD3
+license-file:        LICENSE
+author:              Juhani Bonsdorff
+maintainer:          NA
+copyright:           Juhani Bonsdorff
+category:            Web
+build-type:          Simple
+extra-source-files:  README.md
+cabal-version:       >=1.10
+
+
+extra-source-files:
+  cbits/hsncurses-shim.c
+  cbits/hsncurses-shim.h
+  cbits/mavericks-c2hs-workaround.h
+
+-- Do not use default to using pkg-config to find ncurses libraries, because
+-- the .pc files are missing or broken in many installations.
+flag use-pkgconfig
+  default: False
+  manual: True
+  description:
+    Use pkg-config to set linker and include flags.
+
+flag force-narrow-library
+  default: False
+  manual: True
+  description:
+    Force including and linking against ncurses instead of ncursesw. This is
+    only useful on systems that have the ncursesw package installed
+    incorrectly. On most systems this will cause compile- or run-time errors.
+    
+library
+  hs-source-dirs: src
+  ghc-options: -Wall -O2
+  include-dirs: .
+
+  build-depends:
+      base >= 4.0 && < 5.0
+    , containers >= 0.2
+    , text >= 0.7
+    , transformers >= 0.2
+
+  build-tools:
+    c2hs >= 0.15
+
+  if flag(use-pkgconfig)
+    if flag(force-narrow-library)
+      cc-options: -DHSNCURSES_NARROW_HEADER
+      pkgconfig-depends: ncurses, panel
+    else
+      pkgconfig-depends: ncursesw, panelw
+  else
+    -- MacOS has a version of ncurses where the narrow- and wide-character
+    -- builds have been merged into a single header/dylib.
+    --
+    -- Explicitly linking against libpthread.so fixes a build problem on
+    -- platforms where the linker doesn't automatically follow dependencies.
+    if os(darwin) || os(freebsd) || flag(force-narrow-library)
+      cc-options: -DHSNCURSES_NARROW_HEADER
+    if os(darwin) || flag(force-narrow-library)
+      extra-libraries: panel ncurses pthread
+    else
+      extra-libraries: panelw ncursesw pthread
+
+  c-sources: cbits/hsncurses-shim.c
+
+  exposed-modules:
+    UI.NCurses
+    UI.NCurses.Panel
+
+  other-modules:
+    UI.NCurses.Enums
+    UI.NCurses.Compat
+    UI.NCurses.Types
+
+executable gol-exe
+  hs-source-dirs:      app
+  main-is:             Main.hs
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  build-depends:       base
+                     , gol
+  default-language:    Haskell2010
+  
+test-suite gol-test
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      test
+  main-is:             Spec.hs
+  build-depends:       base
+                     , gol
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  default-language:    Haskell2010
+
+source-repository head
+  type:     git
+  location: https://github.com/JBons/gol
