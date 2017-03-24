@@ -2,13 +2,13 @@ name:                gol
 version:             0.1.0.0
 -- synopsis:
 -- description:
-homepage:            https://github.com/JBons/gol#readme
-license:             BSD3
+homepage:            https://github.com/JBons/Hask-GoL#README.md
+license:             GPL-3
 license-file:        LICENSE
 author:              Juhani Bonsdorff
 maintainer:          NA
 copyright:           Juhani Bonsdorff
-category:            Web
+category:            Sample
 build-type:          Simple
 extra-source-files:  README.md
 cabal-version:       >=1.10
@@ -70,6 +70,8 @@ library
 
   c-sources: cbits/hsncurses-shim.c
 
+  default-language:    Haskell2010
+
   exposed-modules:
     UI.NCurses
     UI.NCurses.Panel
@@ -99,4 +101,4 @@ test-suite gol-test
 
 source-repository head
   type:     git
-  location: https://github.com/JBons/gol
+  location: https://github.com/JBons/Hask-GoL
