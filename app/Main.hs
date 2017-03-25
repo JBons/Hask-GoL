@@ -15,78 +15,76 @@
 
 module Main where
 
+import System.Environment
 import UI.NCurses
 import Data.Array.IArray
+import Torus -- :: Array Position Integer;   Position :: (Integer,Integer)
+import CLP (parseCLP)
 
-type Position = (Integer, Integer)
-type Grid = Array Position Integer
-
--- Build grid from specified "live" positions (recorded as value 1)
-gridFromOnes :: (Position, Position) -> [Position] -> Grid
-gridFromOnes size ones = array size $ map check (range size) where
-  check pos = if pos `elem` ones then (pos,1) else (pos,0)
-
--- Update of a cell in the grid.
--- The grid "wraps around the edges", forming torus
-tick :: Grid -> Position -> Integer
-tick grid (x,y)
+-- This is where the Game of Life is specified:
+-- An Integer array represents the world, which is wrapped up into a torus.
+-- This function gets the next-round value of a cell on the "world" torus.
+-- 1 is alive, 0 is dead.
+tick :: Torus -> Position -> Integer
+tick torus (x,y)
   | ( sqsum == 3 ) = 1
-  | ( sqsum == 4) = grid ! (x,y)
+  | ( sqsum == 4) = torus ! (x,y)
   | otherwise = 0
-    where sqsum = sum $ map (grid !) nbhd
-          nbhd = [ wrap (x+dx, y+dy) | dx <- [-1..1], dy <- [-1..1] ]
-          wrap (x,y) = (x `mod` (maxX + 1), y `mod` (maxY +1))
-          (maxX,maxY) = snd $ bounds grid
+    where sqsum = sum $ map (torus !) nbhd
+          nbhd = [ pr (x+dx, y+dy) | dx <- [-1..1], dy <- [-1..1] ]
+          pr = project (dims torus) -- we project the nbhd of point to torus
 
--- Produces the next iteration of the grid
-next :: Grid -> Grid
-next grid =
-  array (bounds grid) $ map update (assocs grid)
-  where update (pos,_) = (pos, tick grid pos)
+-- Produces the next iteration of the torus
+next :: Torus -> Torus
+next torus =
+  array (bounds torus) $ map update (assocs torus)
+  where update (pos,_) = (pos, tick torus pos)
 
 --
 -- Main program loop and graphical UI
 --
-
--- No CLI arguments implemented yet, just run the automaton
 main :: IO ()
-main = runCurses $ do
-  let start = gridFromOnes ((0,0),(20,20)) fun
-  showInstructionsBelow start
-  runGrid start
+main = do
+  args <- getArgs
+  let parsed = parseCLP $ concat args -- NB!! This kills white space
+  case parsed of
+    Right initial-> runCurses $ do
+                        showInstructionsBelow initial
+                        runTorus initial
+    Left _         -> putStrLn "There was some issue with the command line parameters."
 
 -- Helper to show positioned instruction text
-showInstructionsBelow :: Grid -> Curses ()
-showInstructionsBelow grid = do
+showInstructionsBelow :: Torus -> Curses ()
+showInstructionsBelow torus = do
   window <- defaultWindow
   updateWindow window $ do
-     moveCursor (snd(snd(bounds grid))+5) 10
+     moveCursor (snd(dims torus)+5) 10
      drawString "Space to advance, q to exit."
   render
 
--- Main UI loop to show and update the grid
-runGrid :: Grid -> Curses ()
-runGrid grid = do
+-- Main UI loop to show and update the torus
+runTorus :: Torus -> Curses ()
+runTorus t = do
   window <- defaultWindow
   setEcho False
-  updateWindow window (draw grid)
+  updateWindow window (draw t)
   render
   handle `eventsFor` window where
-    handle (EventCharacter ' ') = runGrid (next grid) 
+    handle (EventCharacter ' ') = runTorus (next t) 
     handle (EventCharacter 'q') = return ()
-    handle _ = runGrid grid 
+    handle _ = runTorus t 
 
--- Update whole grid to UI
-draw :: Grid -> Update ()
-draw grid = sequence_ $ map (markPosFrom grid) (indices grid)
+-- Update whole torus to UI
+draw :: Torus -> Update ()
+draw t = sequence_ $ map (markPosFrom t) (indices t)
 
--- Update specified position from grid to UI
-markPosFrom :: Grid -> Position -> Update ()
-markPosFrom grid (x,y) =
+-- Update specified position from torus to UI
+markPosFrom :: Torus -> Position -> Update ()
+markPosFrom t (x,y) =
   do moveCursor x y
      drawGlyph g
   where
-    g = glyphs !! (fromInteger (grid ! (x,y)))
+    g = glyphs !! (fromInteger (t ! (x,y)))
     glyphs = [Glyph ' ' [], glyphBlock]
 
 -- UI even loop: runs specified event handler for a window
@@ -97,14 +95,3 @@ eventsFor handle win = loop where
         case ev of
             Nothing -> loop
             Just e ->  handle e 
-
--- Intial arrangements
-
--- 1. Arrangement with a period of 15
-fun = 
-  [(10,5), (11,5), (12,5), (11,6), (11,7), (10,8), (11,8), (12,8),
-   (10,10), (11,10), (12,10), (10,11), (11,11), (12,11),
-   (10,13), (11,13), (12,13), (11,14), (11,15), (10,16), (11,16), (12,16)]
-
--- 2. Diagonally moving "glider"
-glider = [(5,5),(3,6),(5,6),(4,7),(5,7)]
